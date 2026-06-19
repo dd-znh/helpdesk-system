@@ -81,7 +81,7 @@ jobs:
           echo "JWT_SECRET=supersecret" >> backend/.env
 
       - name: Build and Run Stack (Docker Compose)
-        run: docker-compose up --build -d
+        run: docker compose up --build -d
         
       - name: Wait for services to be ready
         run: sleep 20 # Aguarda o banco e a API subirem completamente
