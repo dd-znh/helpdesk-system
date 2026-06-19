@@ -1,90 +1,72 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 
-export default function Dashboard() {
-  const [tickets, setTickets] = useState([]);
+export default function NewTicket() {
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [priority, setPriority] = useState('Média');
+  const [file, setFile] = useState(null);
   const navigate = useNavigate();
-  const user = JSON.parse(localStorage.getItem('@Helpdesk:user'));
 
-  useEffect(() => {
-    loadTickets();
-  }, []);
-
-  const loadTickets = async () => {
-    try {
-      const response = await api.get('/tickets');
-      setTickets(response.data);
-    } catch (err) {
-      console.error('Erro ao carregar chamados', err);
-      if (err.response?.status === 401) handleLogout();
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    // Usando FormData para enviar texto e o arquivo físico juntos
+    const formData = new FormData();
+    formData.append('title', title);
+    formData.append('description', description);
+    formData.append('priority', priority);
+    if (file) {
+      formData.append('attachment', file);
     }
-  };
 
-  const updateStatus = async (id, newStatus) => {
     try {
-      await api.put(`/tickets/${id}`, { status: newStatus });
-      loadTickets(); // Recarrega a lista após atualizar
+      // O Axios é inteligente! Sem passarmos os 'headers' manualmente, 
+      // ele mesmo gera o boundary correto para o multipart/form-data.
+      await api.post('/tickets', formData);
+      navigate('/dashboard');
     } catch (err) {
-      alert('Erro ao atualizar status. Verifique se você tem permissão.');
+      console.error(err);
+      alert('Erro ao criar chamado. Verifique os dados e tente novamente.');
     }
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem('@Helpdesk:token');
-    localStorage.removeItem('@Helpdesk:user');
-    navigate('/');
   };
 
   return (
-    <div style={{ maxWidth: '900px', margin: '0 auto', padding: '20px', fontFamily: 'sans-serif' }}>
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
-        <h1>Dashboard de Chamados</h1>
+    <div style={{ maxWidth: '600px', margin: '40px auto', fontFamily: 'sans-serif' }}>
+      <button onClick={() => navigate('/dashboard')} style={{ marginBottom: '20px', cursor: 'pointer' }}>← Voltar</button>
+      
+      <h2>Abrir Novo Chamado</h2>
+      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px', background: '#f9f9f9', padding: '20px', borderRadius: '8px' }}>
+        
         <div>
-          <span style={{ marginRight: '15px' }}>Olá, {user?.name} ({user?.role})</span>
-          <button onClick={() => navigate('/new-ticket')} style={{ padding: '8px 15px', background: '#28a745', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', marginRight: '10px' }}>
-            + Novo Chamado
-          </button>
-          <button onClick={handleLogout} style={{ padding: '8px 15px', background: '#dc3545', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-            Sair
-          </button>
+          <label style={{ display: 'block', marginBottom: '5px' }}>Título do Problema</label>
+          <input type="text" value={title} onChange={e => setTitle(e.target.value)} required style={{ width: '100%', padding: '8px' }} />
         </div>
-      </header>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-        {tickets.length === 0 && <p>Nenhum chamado encontrado.</p>}
-        {tickets.map(ticket => (
-          <div key={ticket.id} style={{ padding: '20px', border: '1px solid #ddd', borderRadius: '8px', background: '#fafafa' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <h3 style={{ margin: '0 0 10px 0' }}>#{ticket.id} - {ticket.title}</h3>
-              <span style={{ fontWeight: 'bold', color: ticket.status === 'Aberto' ? '#d9534f' : '#5cb85c' }}>
-                {ticket.status}
-              </span>
-            </div>
-            <p style={{ color: '#555' }}>{ticket.description}</p>
-            <div style={{ fontSize: '13px', color: '#777', marginTop: '10px' }}>
-              <strong>Prioridade:</strong> {ticket.priority} | <strong>Solicitante:</strong> {ticket.requester_name}
-            </div>
-            
-            {/* Exibe link do anexo se existir */}
-            {ticket.attachment_url && (
-              <div style={{ marginTop: '10px' }}>
-                <a href={`http://localhost:3000${ticket.attachment_url}`} target="_blank" rel="noreferrer" style={{ color: '#0056b3' }}>
-                  📎 Ver Anexo Original
-                </a>
-              </div>
-            )}
+        <div>
+          <label style={{ display: 'block', marginBottom: '5px' }}>Descrição Detalhada</label>
+          <textarea value={description} onChange={e => setDescription(e.target.value)} required rows="5" style={{ width: '100%', padding: '8px' }} />
+        </div>
 
-            {/* Ações de Técnico/Admin */}
-            {user?.role !== 'user' && ticket.status !== 'Fechado' && (
-              <div style={{ marginTop: '15px', borderTop: '1px solid #eee', paddingTop: '10px' }}>
-                <button onClick={() => updateStatus(ticket.id, 'Em Andamento')} style={{ marginRight: '10px', cursor: 'pointer' }}>Mover para Em Andamento</button>
-                <button onClick={() => updateStatus(ticket.id, 'Fechado')} style={{ cursor: 'pointer' }}>Marcar como Fechado</button>
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
+        <div>
+          <label style={{ display: 'block', marginBottom: '5px' }}>Prioridade</label>
+          <select value={priority} onChange={e => setPriority(e.target.value)} style={{ width: '100%', padding: '8px' }}>
+            <option value="Baixa">Baixa</option>
+            <option value="Média">Média</option>
+            <option value="Alta">Alta</option>
+          </select>
+        </div>
+
+        <div>
+          <label style={{ display: 'block', marginBottom: '5px' }}>Anexar Print ou PDF (Opcional)</label>
+          <input type="file" accept="image/*,application/pdf" onChange={e => setFile(e.target.files[0])} />
+        </div>
+
+        <button type="submit" style={{ padding: '10px', background: '#0056b3', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', marginTop: '10px' }}>
+          Enviar Chamado
+        </button>
+      </form>
     </div>
   );
 }

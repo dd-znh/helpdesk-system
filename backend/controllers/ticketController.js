@@ -6,9 +6,6 @@ const TicketController = {
     const requester_id = req.userId; // Capturado do middleware de autenticação
 
     try {
-      // Inicia uma transação para garantir consistência caso haja upload de arquivo
-      await db.query('BEGIN');
-
       const ticketResult = await db.query(
         'INSERT INTO tickets (title, description, priority, requester_id) VALUES ($1, $2, $3, $4) RETURNING *',
         [title, description, priority || 'Média', requester_id]
@@ -25,10 +22,9 @@ const TicketController = {
         ticket.attachment = filePath;
       }
 
-      await db.query('COMMIT');
       return res.status(201).json(ticket);
     } catch (err) {
-      await db.query('ROLLBACK');
+      console.error('❌ ERRO NO BACKEND (Create Ticket):', err);
       return res.status(500).json({ error: 'Erro ao criar chamado: ' + err.message });
     }
   },
@@ -56,6 +52,7 @@ const TicketController = {
       const result = await db.query(queryText, params);
       return res.json(result.rows);
     } catch (err) {
+      console.error('❌ ERRO NO BACKEND (List Tickets):', err);
       return res.status(500).json({ error: 'Erro ao listar chamados: ' + err.message });
     }
   },
@@ -65,7 +62,6 @@ const TicketController = {
     const { status, assigned_tech_id } = req.body;
 
     try {
-      // Regra de Negócio: Apenas técnicos/admins alteram status ou atribuem técnicos
       if (req.userRole === 'user') {
         return res.status(403).json({ error: 'Operação não permitida para o seu nível de acesso.' });
       }
@@ -101,6 +97,7 @@ const TicketController = {
 
       return res.json(result.rows[0]);
     } catch (err) {
+      console.error('❌ ERRO NO BACKEND (Update Ticket):', err);
       return res.status(500).json({ error: 'Erro ao atualizar chamado: ' + err.message });
     }
   }

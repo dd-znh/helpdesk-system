@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  # 1. Banco de Dados PostgreSQL
+  db:
+    image: postgres:15-alpine
+    container_name: helpdesk-db
+    restart: always
+    env_file:
+      - ./backend/.env # O Postgres vai ler DB_USER, DB_PASSWORD, etc.
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql # Roda o script na 1ª vez
+    networks:
+      - helpdesk-net
+
+  # 2. Back-end (API Node.js)
+  backend:
+    build:
+      context: ./backend
+    container_name: helpdesk-backend
+    restart: always
+    env_file:
+      - ./backend/.env
+    environment:
+      # Sobrescrevemos o DB_HOST para o nome do container do banco
+      DB_HOST: db 
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./backend/uploads:/app/uploads # Persiste os anexos dos chamados no seu disco
+    depends_on:
+      - db
+    networks:
+      - helpdesk-net
+
+  # 3. Front-end (React + Nginx)
+  frontend:
+    build:
+      context: ./frontend
+    container_name: helpdesk-frontend
+    restart: always
+    ports:
+      - "5173:80" # Mapeia a porta 80 do Nginx para a 5173 da sua máquina
+    depends_on:
+      - backend
+    networks:
+      - helpdesk-net
+
+networks:
+  helpdesk-net:
+    driver: bridge
+
+volumes:
+  postgres_data:

@@ -1,0 +1,94 @@
+
+name: DevSecOps Pipeline - Helpdesk
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  # 1. Secret Detection
+  secret-detection:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Gitleaks Scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # 2. SAST (Static Application Security Testing)
+  sast-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Semgrep SAST
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: "p/javascript"
+
+  # 3. SCA (Software Composition Analysis)
+  sca-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: '22'
+      - name: Backend npm audit
+        working-directory: ./backend
+        run: npm audit --audit-level=moderate || true
+      - name: Frontend npm audit
+        working-directory: ./frontend
+        run: npm audit --audit-level=moderate || true
+
+  # 4. IaC Scanning (Infraestructure as Code)
+  iac-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run tfsec on Terraform
+        uses: aquasecurity/tfsec-action@v1.0.0
+        with:
+          working_directory: ./infra
+      - name: Scan Dockerfiles with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'table'
+          exit-code: '0' # Mantém em 0 para não quebrar a esteira antes de gerar o relatório
+
+  # 5. DAST (Dynamic Application Security Testing)
+  dast-scan:
+    runs-on: ubuntu-latest
+    # O DAST só roda se a infra, os segredos e o SAST passarem (ou rodarem)
+    needs: [secret-detection, sast-scan, sca-scan, iac-scan]
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Create .env file for Docker
+        run: |
+          echo "PORT=3000" > backend/.env
+          echo "DB_USER=postgres" >> backend/.env
+          echo "DB_PASSWORD=admin" >> backend/.env
+          echo "DB_NAME=helpdesk_db" >> backend/.env
+          echo "DB_HOST=db" >> backend/.env
+          echo "JWT_SECRET=supersecret" >> backend/.env
+
+      - name: Build and Run Stack (Docker Compose)
+        run: docker-compose up --build -d
+        
+      - name: Wait for services to be ready
+        run: sleep 20 # Aguarda o banco e a API subirem completamente
+        
+      - name: OWASP ZAP Baseline Scan (DAST)
+        uses: zaproxy/action-baseline@v0.12.0
+        with:
+          # Ataca a interface que está rodando no container
+          target: 'http://localhost:5173'
+          fail_action: false # Não quebra a esteira para você poder ver os resultados
