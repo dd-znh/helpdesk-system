@@ -1,0 +1,151 @@
+\documentclass[12pt, a4paper]{article}
+
+% Pacotes essenciais
+\usepackage[utf8]{inputenc}
+\usepackage[portuguese]{babel}
+\usepackage{graphicx}
+\usepackage{geometry}
+\usepackage{hyperref}
+\usepackage{float}
+\usepackage{listings}
+\usepackage{xcolor}
+
+% Configuração das margens
+\geometry{a4paper, top=3cm, bottom=2cm, left=3cm, right=2cm}
+
+% Configuração para blocos de código (Logs)
+\lstset{
+    basicstyle=\ttfamily\scriptsize,
+    breaklines=true,
+    backgroundcolor=\color{gray!10},
+    frame=single,
+    numbers=none,
+    showstringspaces=false
+}
+
+% 0. CAPA
+\title{
+    \vspace{-2cm}
+    \begin{center}
+        \Large \textbf{Universidade Federal de Santa Catarina} \\
+        \large Curso de Ciência da Computação
+    \end{center}
+    \vspace{2cm}
+    \textbf{Automação e Auditoria de Segurança Contínua:\\ Implementação de Pipeline DevSecOps em Sistema de Helpdesk}
+}
+\author{Eduardo Achar - 23102448}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+\thispagestyle{empty}
+
+\begin{abstract}
+Este relatório descreve o desenvolvimento de uma aplicação de Helpdesk conteinerizada e a implementação de uma esteira automatizada de DevSecOps. O projeto explora a integração de ferramentas de segurança nas fases de Integração Contínua e Entrega Contínua (CI/CD), contemplando análises de código estático (SAST), detecção de segredos, análise de dependências (SCA), verificação de Infraestrutura como Código (IaC) e testes dinâmicos (DAST). Os resultados demonstram a identificação e mitigação arquitetural de vulnerabilidades críticas, consolidando as boas práticas de desenvolvimento seguro.
+\end{abstract}
+
+\newpage
+\tableofcontents
+\newpage
+
+% 1. DESCRIÇÃO DO SISTEMA E FERRAMENTAL
+\section{Descrição do Sistema e Ferramental}
+
+O sistema auditado neste trabalho consiste em uma plataforma de Helpdesk (gerenciamento de chamados técnicos) concebida através de uma arquitetura de microsserviços. O ecossistema é formado por um Front-end construído em \textit{React/Vite} (servido de forma otimizada via servidor \textit{Nginx}), um Back-end implementado como uma API REST em \textit{Node.js}, e persistência de dados em um banco relacional \textit{PostgreSQL}. Para garantir o isolamento e a reprodutibilidade, toda a aplicação foi conteinerizada com \textit{Docker} e provisionada na nuvem da \textit{Amazon Web Services} (AWS) via \textit{Terraform}.
+
+Uma premissa fundamental e intencional deste projeto foi a separação de responsabilidades na engenharia do software. O código-fonte de negócio da aplicação foi gerado através de \textit{Vibecoding} (desenvolvimento assistido por Inteligência Artificial). A geração de código primária por IA foca na entrega rápida de funcionalidades, mas frequentemente omite práticas robustas de segurança (como cabeçalhos HTTP estritos). Essa deficiência induzida serviu como o cenário ideal para comprovar a eficácia analítica da esteira de DevSecOps, que foi totalmente arquitetada e configurada de forma manual.
+
+\subsection{Plataforma de CI/CD e Integração DevSecOps}
+A automação foi orquestrada utilizando o \textbf{GitHub Actions}. O \textit{pipeline} foi configurado para atuar como um \textit{Quality Gate} inflexível a cada \textit{push} na \textit{branch} principal, integrando as cinco camadas obrigatórias de varredura estipuladas para este estudo:
+
+\begin{itemize}
+    \item \textbf{Secret Detection:} \textit{Gitleaks} (Auditoria do histórico em busca de credenciais vazadas).
+    \item \textbf{SCA (Software Composition Analysis):} \textit{npm audit} (Verificação de CVEs e falhas conhecidas na árvore de dependências de terceiros do Front-end e Back-end).
+    \item \textbf{SAST (Static Application Security Testing):} \textit{Semgrep} (Análise estática da sintaxe do código JS/React contra padrões inseguros).
+    \item \textbf{IaC Scanning (Infraestrutura como Código):} \textit{tfsec} (Validação estática de conformidade e \textit{hardening} dos manifestos do Terraform).
+    \item \textbf{DAST (Dynamic Application Security Testing):} \textit{OWASP ZAP} (Ataque dinâmico automatizado aos contêineres levantados em tempo de execução na esteira).
+\end{itemize}
+
+O código-fonte, o histórico de \textit{commits}, as configurações de infraestrutura e as \textit{Issues} geradas pelos robôs de segurança são públicos e estão disponíveis para auditoria no seguinte repositório: \\ \url{https://github.com/dd-znh/helpdesk-system}.
+
+% 2. EVIDÊNCIAS DE EXECUÇÃO
+\section{Evidências de Execução}
+
+Para ratificar a execução do \textit{pipeline}, destacam-se recortes das saídas textuais (\textit{logs}) dos \textit{Jobs} processados pela máquina virtual do GitHub Actions. A execução completa gerou relatórios dinâmicos que foram atrelados diretamente ao repositório via \textit{Issues}.
+
+\subsection{Verificações Estáticas (Secrets, SCA e SAST)}
+O \textit{job} primário encarregou-se da varredura do histórico Git, dependências Node.js e código-fonte, confirmando a ausência de chaves em texto claro e o saneamento das bibliotecas utilizadas.
+
+\begin{lstlisting}[caption=Logs de aprovação das camadas de Código e Dependências]
+Run gitleaks/gitleaks-action@v2
+  8 commits scanned.
+  No leaks found.
+
+Run semgrep/action@v1
+  Scan completed successfully. No high-risk patterns found in JavaScript/JSX logic.
+
+Run npm audit --audit-level=moderate || true
+  (Backend) found 0 vulnerabilities
+  (Frontend) found 0 vulnerabilities
+\end{lstlisting}
+
+\subsection{Verificações de Infraestrutura (tfsec) e Ataque Dinâmico (ZAP)}
+O \textit{job} subsequente auditou o provisionamento simulado da AWS e engatilhou o ataque \textit{DAST}. O \textit{tfsec} e o \textit{ZAP} encontraram com sucesso dezenas de vulnerabilidades, provando o valor da ferramenta, cujas correções serão detalhadas nas seções seguintes.
+
+\begin{lstlisting}[caption=Captura da execução do IaC Scan e DAST]
+Run aquasecurity/tfsec-action@v1.0.0
+  Result #1 CRITICAL Security group rule allows ingress from public internet.
+  Result #5 HIGH Root block device is not encrypted.
+  4 passed, 6 potential problem(s) detected.
+
+Run zaproxy/action-baseline@v0.12.0
+  WARN-NEW: Content Security Policy (CSP) Header Not Set [10038] x 3 
+  WARN-NEW: Missing Anti-clickjacking Header [10020] x 2 
+  Scanning process completed, starting to analyze the results!
+  Process completed successfully and a new issue #1 has been created for the ZAP Scan.
+\end{lstlisting}
+
+% 3. FALSOS POSITIVOS E ALERTAS IRRELEVANTES
+\section{Análise de Falsos Positivos e Alertas Irrelevantes}
+
+Sistemas automatizados de segurança (notoriamente ferramentas DAST) geram invariavelmente ruídos (\textit{false positives}). O papel da engenharia de DevSecOps é promover a "aceitação de risco" baseada no contexto operacional da aplicação.
+
+\subsection{Information Disclosure - Suspicious Comments (ZAP)}
+A ferramenta relatou um suposto vazamento de informações decorrente de "comentários suspeitos" em arquivos estáticos (ex: \texttt{/assets/index-28w9bwLP.js}). Uma inspeção técnica revela que este é um falso positivo clássico. O ZAP escaneou os pacotes minificados pelo \textit{Vite} (empacotador do React) e interpretou declarações de licenças de \textit{software livre} e cabeçalhos estruturais inofensivos como dados sensíveis. O alerta foi ignorado com segurança.
+
+\subsection{Diretivas CSP unsafe-inline (ZAP)}
+Mesmo após as correções da Seção 4, o ZAP continuou a alertar sobre a presença de diretivas \texttt{unsafe-inline} na \textit{Content Security Policy} (CSP). Embora bloqueios estritos de injeção direta sejam o ideal teórico, no contexto de \textit{Single Page Applications} (SPA) modernas, o ecossistema injeta folhas de estilo CSS e \textit{scripts} modulares diretamente na árvore do DOM em tempo real. Remover o permissivo \texttt{unsafe-inline} causaria a paralisação completa do Front-end. A mitigação exigiria infraestrutura avançada baseada em \textit{nonces} aleatórios injetados no lado do servidor a cada requisição, um esforço desproporcional ao objetivo desta prova de conceito, motivando a aceitação técnica deste risco.
+
+\subsection{Storable and Cacheable Content (ZAP)}
+Alerta classificado como risco irrelevante (Informacional). O ZAP notificou que arquivos como CSS e SVG estão sendo retidos em \textit{cache}. Em aplicações Web, o armazenamento em cache de componentes estáticos não-sensíveis é o comportamento exato e desejado do servidor Nginx para reduzir a latência e consumo de banda de rede do usuário final.
+
+% 4. IDENTIFICAÇÃO E CORREÇÃO DE FALHAS REAIS
+\section{Identificação e Correção de Falhas Reais}
+
+Esta seção demonstra o valor da cultura \textit{Shift-Left Security}. As ferramentas revelaram falhas graves de arquitetura que foram interceptadas e refatoradas no código muito antes de chegarem à fase de implantação (\textit{Deploy}).
+
+\subsection{Falha 1: Exposição de Rede e Falta de Criptografia At-Rest (tfsec)}
+\textbf{A Vulnerabilidade e o Impacto:} O \textit{tfsec} inspecionou o arquivo \texttt{infra/main.tf} e bloqueou o \textit{pipeline} sinalizando vetores de risco críticos. O \textit{Security Group} autorizava o tráfego de entrada e saída por blocos CIDR \texttt{0.0.0.0/0}, o que deixaria a aplicação do Helpdesk abertamente exposta a varreduras (\textit{port scans}) de toda a internet. Adicionalmente, o volume raiz de armazenamento (EBS) não possuía a diretiva de criptografia, permitindo que a extração física do disco comprometesse a base de dados em repouso. 
+
+\textbf{A Correção:} O código Terraform foi refatorado. As regras de \textit{Ingress} e \textit{Egress} do Firewall foram encapsuladas estritamente para sub-redes da Intranet (\texttt{10.0.0.0/8}). O bloco de instâncias da AWS recebeu os modificadores \texttt{encrypted = true} para o armazenamento e a obrigatoriedade de uso do \textit{token} IMDSv2 (\texttt{http\_tokens = "required"}) para acessar metadados, neutralizando tentativas de ataques do tipo \textit{Server-Side Request Forgery} (SSRF).
+
+\subsection{Falha 2: Ausência de Cabeçalhos de Segurança (OWASP ZAP)}
+\textbf{A Vulnerabilidade e o Impacto:} O ataque dinâmico disparado localmente no \textit{Job} revelou que o servidor Nginx, responsável por servir a aplicação, vazava explicitamente a versão do seu sistema operacional (\texttt{Server: nginx/1.25.x}) na resposta HTTP. Mais grave ainda foi a constatação da total ausência do cabeçalho Anti-clickjacking (\texttt{X-Frame-Options}). A falta desta diretiva permitiria que atores maliciosos incorporassem a tela do Helpdesk em \textit{iFrames} invisíveis de terceiros para roubar as credenciais e as ações dos funcionários logados no sistema.
+
+\textbf{A Correção:} Em vez de alterar pontualmente a aplicação, o \textit{hardening} foi implementado na raiz da infraestrutura Web. Um arquivo restrito \texttt{nginx.conf} foi acoplado à construção do \textit{Dockerfile} do Front-end. Este arquivo suprimiu o vazamento do \textit{software} (\texttt{server\_tokens off;}) e determinou diretivas irredutíveis para os navegadores clientes: \texttt{add\_header X-Frame-Options "SAMEORIGIN"} e as políticas de controle de origem (\texttt{Cross-Origin-Opener-Policy}). Após um \textit{git push} com estas correções, a esteira foi executada novamente e o relatório subsequente confirmou a supressão definitiva da vulnerabilidade.
+
+% ====================================================================
+% 5. ANÁLISE DE TRADE-OFFS E DESAFIOS OPERACIONAIS
+% ====================================================================
+\section{Decisões Arquiteturais e Desafios de CI/CD}
+
+A implementação deste projeto acadêmico exigiu escolhas para balancear conveniência e conformidade. Para mitigar o travamento sucessivo do fluxo de desenvolvimento (\textit{Developer Experience}), a análise SCA (\textit{npm audit}) foi configurada no modo \texttt{|| true}, agindo apenas como ferramenta de observabilidade e não como barreira impeditiva de execução. Em contrapartida, um modelo corporativo maduro exigiria o fracasso forçado da esteira (Exit Code \textgreater 0) na presença de CVEs severos nas dependências.
+
+Destaca-se também a observação do encerramento inesperado reportado pelo OWASP ZAP ao final da esteira. Os \textit{logs} detalharam o erro \texttt{400 Bad Request / System:PublicAccess} atrelado à rotina interna de carregamento de artefatos temporários (\textit{Create Artifact Container failed}). Uma análise profunda revelou que este não era um erro da aplicação ou do motor de segurança, mas sim uma incompatibilidade de versões obsoletas da API de armazenamento do \textit{GitHub Actions}. O impacto real da falha foi desconsiderado com a implementação pontual do comando \texttt{continue-on-error: true}, uma vez que a etapa crucial (geração do relatório e inserção automatizada via \textit{Issues}) ocorria nos segundos anteriores à falha técnica de carregamento, atestando a robustez funcional do pipeline.
+
+% ====================================================================
+\section{Conclusão}
+Este trabalho atesta que, na engenharia de sistemas contemporânea, a velocidade não deve superar a confiabilidade. Ao integrar cinco camadas automatizadas de proteção diretamente no \textit{pipeline} de \textit{deploy}, a prova de conceito do Helpdesk superou as falhas geradas pelo desenvolvimento acelerado, validando o modelo onde a segurança age de forma silenciosa, antecipada e contínua.
+
+\end{document}
