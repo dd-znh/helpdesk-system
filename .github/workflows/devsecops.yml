@@ -18,7 +18,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0                           # Necessário para o Gitleaks analisar todo o histórico do repositório
       - name: Gitleaks Scan
         uses: gitleaks/gitleaks-action@v2
         env:
@@ -32,7 +32,7 @@ jobs:
       - name: Run Semgrep SAST
         uses: returntocorp/semgrep-action@v1
         with:
-          config: "p/javascript"
+          config: "p/javascript"            # Regras prontas para o JS
 
   # 3. SCA (Software Composition Analysis)
   sca-scan:
@@ -45,10 +45,10 @@ jobs:
           node-version: '22'
       - name: Backend npm audit
         working-directory: ./backend
-        run: npm audit --audit-level=moderate || true
+        run: npm audit --audit-level=moderate || true # Continua mesmo se encontrar vulnerabilidades, para gerar o relatório
       - name: Frontend npm audit
         working-directory: ./frontend
-        run: npm audit --audit-level=moderate || true
+        run: npm audit --audit-level=moderate || true # Continua mesmo se encontrar vulnerabilidades, para gerar o relatório
 
   # 4. IaC Scanning (Infraestructure as Code)
   iac-scan:
