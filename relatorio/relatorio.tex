@@ -120,6 +120,11 @@ Mesmo após as correções da Seção 4, o ZAP continuou a alertar sobre a prese
 \subsection{Storable and Cacheable Content (ZAP)}
 Alerta classificado como risco irrelevante (Informacional). O ZAP notificou que arquivos como CSS e SVG estão sendo retidos em \textit{cache}. Em aplicações Web, o armazenamento em cache de componentes estáticos não-sensíveis é o comportamento exato e desejado do servidor Nginx para reduzir a latência e consumo de banda de rede do usuário final.
 
+\subsection{Ponto Cego de Contexto: Credenciais no Banco de Dados (Semgrep e Gitleaks)}
+Durante uma auditoria manual do código, observou-se que o \textit{script} de inicialização do banco de dados (\texttt{database/init.sql}) continha um \textit{hash} \textit{bcrypt} predefinido para um usuário administrador, com a respectiva senha em texto claro ("admin123") descrita em um comentário. Notavelmente, nenhuma das ferramentas da esteira sinalizou este trecho como vulnerabilidade.
+
+Esta ocorrência não é um erro da ferramenta, mas uma limitação arquitetural conhecida como "Cegueira de Contexto" (\textit{Context Blindness}). O \textit{Gitleaks} não classifica \textit{hashes} unidirecionais como segredos absolutos e não correlaciona linguagem natural em comentários. Mais criticamente, a ineficácia na detecção evidencia uma limitação de escopo da própria configuração de SAST: como o \textit{Semgrep} foi instanciado no \textit{pipeline} utilizando o pacote de regras \texttt{p/javascript}, o motor de análise focou estritamente na árvore sintática do Front-end e Back-end, ignorando sistematicamente arquivos de extensão \texttt{.sql}. Este cenário comprova que a automação segmentada cria pontos cegos, exigindo configurações multilíngues robustas e não substituindo a revisão humana (\textit{Code Review}).
+
 % 4. IDENTIFICAÇÃO E CORREÇÃO DE FALHAS REAIS
 \section{Identificação e Correção de Falhas Reais}
 
@@ -135,16 +140,18 @@ Esta seção demonstra o valor da cultura \textit{Shift-Left Security}. As ferra
 
 \textbf{A Correção:} Em vez de alterar pontualmente a aplicação, o \textit{hardening} foi implementado na raiz da infraestrutura Web. Um arquivo restrito \texttt{nginx.conf} foi acoplado à construção do \textit{Dockerfile} do Front-end. Este arquivo suprimiu o vazamento do \textit{software} (\texttt{server\_tokens off;}) e determinou diretivas irredutíveis para os navegadores clientes: \texttt{add\_header X-Frame-Options "SAMEORIGIN"} e as políticas de controle de origem (\texttt{Cross-Origin-Opener-Policy}). Após um \textit{git push} com estas correções, a esteira foi executada novamente e o relatório subsequente confirmou a supressão definitiva da vulnerabilidade.
 
-% ====================================================================
+\subsection{Falha 3: Superfície de Ataque Excessiva no Contêiner Web (Docker)}
+\textbf{A Vulnerabilidade e o Impacto:} Durante a revisão contínua das configurações de Infraestrutura como Código (IaC), identificou-se que a abordagem primária do \textit{Dockerfile} do Front-end carregaria o código-fonte integral da aplicação, o gerenciador de pacotes (\textit{npm}) e o \textit{runtime} completo do \textit{Node.js} para dentro da imagem de produção. O impacto de expor ferramentas de \textit{build} em produção é a ampliação drástica da superfície de ataque. Caso o contêiner web sofresse um \textit{bypass}, o invasor teria à disposição ferramentas para baixar pacotes maliciosos, executar \textit{scripts} e visualizar o código-fonte original não-ofuscado.
+
+\textbf{A Correção:} A arquitetura do \textit{Dockerfile} do Front-end foi reescrita aplicando o padrão de \textit{Multi-stage Builds} (Múltiplos Estágios). O primeiro estágio (\texttt{FROM node:22-slim AS build}) foi isolado unicamente para baixar as dependências e compilar a aplicação React. O segundo estágio (\texttt{FROM nginx:alpine}) utiliza uma imagem base minimalista e segura baseada em \textit{Alpine Linux}, copiando estritamente os artefatos estáticos já compilados (\texttt{/dist}) do estágio anterior. Esta mitigação erradicou a presença do \textit{Node.js} e do código original do ambiente produtivo, blindando o contêiner final e reduzindo as vulnerabilidades a nível de sistema operacional.
+
 % 5. ANÁLISE DE TRADE-OFFS E DESAFIOS OPERACIONAIS
-% ====================================================================
 \section{Decisões Arquiteturais e Desafios de CI/CD}
 
 A implementação deste projeto acadêmico exigiu escolhas para balancear conveniência e conformidade. Para mitigar o travamento sucessivo do fluxo de desenvolvimento (\textit{Developer Experience}), a análise SCA (\textit{npm audit}) foi configurada no modo \texttt{|| true}, agindo apenas como ferramenta de observabilidade e não como barreira impeditiva de execução. Em contrapartida, um modelo corporativo maduro exigiria o fracasso forçado da esteira (Exit Code \textgreater 0) na presença de CVEs severos nas dependências.
 
 Destaca-se também a observação do encerramento inesperado reportado pelo OWASP ZAP ao final da esteira. Os \textit{logs} detalharam o erro \texttt{400 Bad Request / System:PublicAccess} atrelado à rotina interna de carregamento de artefatos temporários (\textit{Create Artifact Container failed}). Uma análise profunda revelou que este não era um erro da aplicação ou do motor de segurança, mas sim uma incompatibilidade de versões obsoletas da API de armazenamento do \textit{GitHub Actions}. O impacto real da falha foi desconsiderado com a implementação pontual do comando \texttt{continue-on-error: true}, uma vez que a etapa crucial (geração do relatório e inserção automatizada via \textit{Issues}) ocorria nos segundos anteriores à falha técnica de carregamento, atestando a robustez funcional do pipeline.
 
-% ====================================================================
 \section{Conclusão}
 Este trabalho atesta que, na engenharia de sistemas contemporânea, a velocidade não deve superar a confiabilidade. Ao integrar cinco camadas automatizadas de proteção diretamente no \textit{pipeline} de \textit{deploy}, a prova de conceito do Helpdesk superou as falhas geradas pelo desenvolvimento acelerado, validando o modelo onde a segurança age de forma silenciosa, antecipada e contínua.
 
