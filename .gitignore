@@ -1,36 +1,26 @@
-# =========================
-# DEPENDÊNCIAS (Front e Back)
-# =========================
+# dependencias
 node_modules/
 **/node_modules/
 
-# =========================
-# VARIÁVEIS DE AMBIENTE
-# =========================
+# variaveis de ambiente
 .env
 **/.env
 *.local
 .env.development.local
 .env.test.local
 .env.production.local
-# (NÃO ignore o .env.example, ele deve subir pro repositório)
+# env.example (manter comentado)
 
-# =========================
-# BUILD DO FRONT-END (Vite/React)
-# =========================
+# build vite e react
 dist/
 dist-ssr/
 build/
 
-# =========================
-# ARMAZENAMENTO LOCAL DO BACK-END
-# =========================
+# armazenamento local backend
 uploads/
 **/uploads/
 
-# =========================
-# LOGS E SO
-# =========================
+# logs e so
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -39,9 +29,7 @@ yarn-error.log*
 Thumbs.db
 logs/
 
-# =========================
-# RELATÓRIOS - ARQUIVOS GERADOS
-# =========================
+# relatorios - subir apenas .tex e .pdf
 relatorio/*
 !relatorio/*.tex
 !relatorio/*.pdf

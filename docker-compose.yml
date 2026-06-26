@@ -29,7 +29,7 @@ services:
     env_file:
       - ./backend/.env
     environment:
-      # Sobrescrevemos o DB_HOST para o nome do container do banco
+      # Sobrescreve o DB_HOST para o nome do container do banco
       DB_HOST: db 
     ports:
       - "3000:3000"
@@ -47,7 +47,7 @@ services:
     container_name: helpdesk-frontend
     restart: always
     ports:
-      - "5173:80" # Mapeia a porta 80 do Nginx para a 5173 da sua máquina
+      - "5173:80" # Mapeia a porta 80 do Nginx para a 5173
     depends_on:
       - backend
     networks:

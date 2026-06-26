@@ -78,16 +78,16 @@ Para ratificar a execução do \textit{pipeline}, destacam-se recortes das saíd
 O \textit{job} primário encarregou-se da varredura do histórico Git, dependências Node.js e código-fonte, confirmando a ausência de chaves em texto claro e o saneamento das bibliotecas utilizadas.
 
 \begin{lstlisting}[caption=Logs de aprovação das camadas de Código e Dependências]
-Run gitleaks/gitleaks-action@v2
-  8 commits scanned.
-  No leaks found.
+Finalizing artifact upload
+Artifact gitleaks-results.sarif.zip successfully finalized. Artifact ID 7758106286
+No leaks detected
 
-Run semgrep/action@v1
-  Scan completed successfully. No high-risk patterns found in JavaScript/JSX logic.
+CI scan completed successfully.
+  Found 0 findings (0 blocking) from 74 rules.
+  No blocking findings so exiting with code 0
 
 Run npm audit --audit-level=moderate || true
-  (Backend) found 0 vulnerabilities
-  (Frontend) found 0 vulnerabilities
+found 0 vulnerabilities
 \end{lstlisting}
 
 \subsection{Verificações de Infraestrutura (tfsec) e Ataque Dinâmico (ZAP)}
@@ -95,15 +95,38 @@ O \textit{job} subsequente auditou o provisionamento simulado da AWS e engatilho
 
 \begin{lstlisting}[caption=Captura da execução do IaC Scan e DAST]
 Run aquasecurity/tfsec-action@v1.0.0
+  ...
   Result #1 CRITICAL Security group rule allows ingress from public internet.
+  ...
+  Result #2 CRITICAL Security group rule allows ingress from public internet. 
+  ...
+  Result #3 CRITICAL Security group rule allows egress to multiple public internet addresses.
+  ...
+  Result #4 HIGH Instance does not require IMDS access to require a token
+  ...
   Result #5 HIGH Root block device is not encrypted.
+  ...
+  Result #6 LOW Security group rule does not have a description.
+  ...
   4 passed, 6 potential problem(s) detected.
 
 Run zaproxy/action-baseline@v0.12.0
+  ...
+  WARN-NEW: Missing Anti-clickjacking Header [10020] x 3 
+  ...
+  WARN-NEW: X-Content-Type-Options Header Missing [10021] x 5
+  ...
+  WARN-NEW: Information Disclosure - Suspicious Comments [10027] x 1
+  ...
   WARN-NEW: Content Security Policy (CSP) Header Not Set [10038] x 3 
-  WARN-NEW: Missing Anti-clickjacking Header [10020] x 2 
-  Scanning process completed, starting to analyze the results!
-  Process completed successfully and a new issue #1 has been created for the ZAP Scan.
+  ...
+  WARN-NEW: Permissions Policy Header Not Set [10063] x 4 
+  ...
+  WARN-NEW: Modern Web Application [10109] x 3 
+  ...
+  WARN-NEW: Cross-Origin-Embedder-Policy Header Missing or Invalid [90004] x 9 
+  ...
+  FAIL-NEW: 0	FAIL-INPROG: 0	WARN-NEW: 9	WARN-INPROG: 0	INFO: 0	IGNORE: 0	PASS: 58
 \end{lstlisting}
 
 % 3. FALSOS POSITIVOS E ALERTAS IRRELEVANTES
@@ -112,7 +135,7 @@ Run zaproxy/action-baseline@v0.12.0
 Sistemas automatizados de segurança (notoriamente ferramentas DAST) geram invariavelmente ruídos (\textit{false positives}). O papel da engenharia de DevSecOps é promover a "aceitação de risco" baseada no contexto operacional da aplicação.
 
 \subsection{Information Disclosure - Suspicious Comments (ZAP)}
-A ferramenta relatou um suposto vazamento de informações decorrente de "comentários suspeitos" em arquivos estáticos (ex: \texttt{/assets/index-28w9bwLP.js}). Uma inspeção técnica revela que este é um falso positivo clássico. O ZAP escaneou os pacotes minificados pelo \textit{Vite} (empacotador do React) e interpretou declarações de licenças de \textit{software livre} e cabeçalhos estruturais inofensivos como dados sensíveis. O alerta foi ignorado com segurança.
+A ferramenta relatou um suposto vazamento de informações decorrente de "comentários suspeitos" em arquivos estáticos (ex: \texttt{/assets/index-28w9bwLP.js}). Uma inspeção técnica revela que este é um falso positivo. O ZAP escaneou os pacotes minificados pelo \textit{Vite} (empacotador do React) e interpretou declarações de licenças de \textit{software livre} e cabeçalhos estruturais inofensivos como dados sensíveis. O alerta foi ignorado com segurança.
 
 \subsection{Diretivas CSP unsafe-inline (ZAP)}
 Mesmo após as correções da Seção 4, o ZAP continuou a alertar sobre a presença de diretivas \texttt{unsafe-inline} na \textit{Content Security Policy} (CSP). Embora bloqueios estritos de injeção direta sejam o ideal teórico, no contexto de \textit{Single Page Applications} (SPA) modernas, o ecossistema injeta folhas de estilo CSS e \textit{scripts} modulares diretamente na árvore do DOM em tempo real. Remover o permissivo \texttt{unsafe-inline} causaria a paralisação completa do Front-end. A mitigação exigiria infraestrutura avançada baseada em \textit{nonces} aleatórios injetados no lado do servidor a cada requisição, um esforço desproporcional ao objetivo desta prova de conceito, motivando a aceitação técnica deste risco.
@@ -120,11 +143,12 @@ Mesmo após as correções da Seção 4, o ZAP continuou a alertar sobre a prese
 \subsection{Storable and Cacheable Content (ZAP)}
 Alerta classificado como risco irrelevante (Informacional). O ZAP notificou que arquivos como CSS e SVG estão sendo retidos em \textit{cache}. Em aplicações Web, o armazenamento em cache de componentes estáticos não-sensíveis é o comportamento exato e desejado do servidor Nginx para reduzir a latência e consumo de banda de rede do usuário final.
 
-\subsection{Ponto Cego de Contexto: Credenciais no Banco de Dados (Semgrep e Gitleaks)}
+\subsection{Credenciais no Banco de Dados (Semgrep e Gitleaks)}
 Durante uma auditoria manual do código, observou-se que o \textit{script} de inicialização do banco de dados (\texttt{database/init.sql}) continha um \textit{hash} \textit{bcrypt} predefinido para um usuário administrador, com a respectiva senha em texto claro ("admin123") descrita em um comentário. Notavelmente, nenhuma das ferramentas da esteira sinalizou este trecho como vulnerabilidade.
 
-Esta ocorrência não é um erro da ferramenta, mas uma limitação arquitetural conhecida como "Cegueira de Contexto" (\textit{Context Blindness}). O \textit{Gitleaks} não classifica \textit{hashes} unidirecionais como segredos absolutos e não correlaciona linguagem natural em comentários. Mais criticamente, a ineficácia na detecção evidencia uma limitação de escopo da própria configuração de SAST: como o \textit{Semgrep} foi instanciado no \textit{pipeline} utilizando o pacote de regras \texttt{p/javascript}, o motor de análise focou estritamente na árvore sintática do Front-end e Back-end, ignorando sistematicamente arquivos de extensão \texttt{.sql}. Este cenário comprova que a automação segmentada cria pontos cegos, exigindo configurações multilíngues robustas e não substituindo a revisão humana (\textit{Code Review}).
+Esta ocorrência não é um erro da ferramenta, mas uma limitação arquitetural. O \textit{Gitleaks} não classifica \textit{hashes} unidirecionais como segredos absolutos e não correlaciona linguagem natural em comentários. Mais criticamente, a ineficácia na detecção evidencia uma limitação de escopo da própria configuração de SAST: como o \textit{Semgrep} foi instanciado no \textit{pipeline} utilizando o pacote de regras \texttt{p/javascript}, o motor de análise focou estritamente na árvore sintática do Front-end e Back-end, ignorando sistematicamente arquivos de extensão \texttt{.sql}. Este cenário comprova que a automação segmentada cria pontos cegos, exigindo configurações multilíngues robustas e não substituindo a revisão humana (\textit{Code Review}).
 
+Como decisão de Gestão de Vulnerabilidades, a mitigação não foi aplicada neste MVP para preservar o escopo inicial do projeto. Em vez disso, a falha foi formalmente documentada e classificada como Dívida Técnica através da abertura de uma \textit{Issue} de segurança no repositório.
 % 4. IDENTIFICAÇÃO E CORREÇÃO DE FALHAS REAIS
 \section{Identificação e Correção de Falhas Reais}
 
@@ -151,8 +175,5 @@ Esta seção demonstra o valor da cultura \textit{Shift-Left Security}. As ferra
 A implementação deste projeto acadêmico exigiu escolhas para balancear conveniência e conformidade. Para mitigar o travamento sucessivo do fluxo de desenvolvimento (\textit{Developer Experience}), a análise SCA (\textit{npm audit}) foi configurada no modo \texttt{|| true}, agindo apenas como ferramenta de observabilidade e não como barreira impeditiva de execução. Em contrapartida, um modelo corporativo maduro exigiria o fracasso forçado da esteira (Exit Code \textgreater 0) na presença de CVEs severos nas dependências.
 
 Destaca-se também a observação do encerramento inesperado reportado pelo OWASP ZAP ao final da esteira. Os \textit{logs} detalharam o erro \texttt{400 Bad Request / System:PublicAccess} atrelado à rotina interna de carregamento de artefatos temporários (\textit{Create Artifact Container failed}). Uma análise profunda revelou que este não era um erro da aplicação ou do motor de segurança, mas sim uma incompatibilidade de versões obsoletas da API de armazenamento do \textit{GitHub Actions}. O impacto real da falha foi desconsiderado com a implementação pontual do comando \texttt{continue-on-error: true}, uma vez que a etapa crucial (geração do relatório e inserção automatizada via \textit{Issues}) ocorria nos segundos anteriores à falha técnica de carregamento, atestando a robustez funcional do pipeline.
-
-\section{Conclusão}
-Este trabalho atesta que, na engenharia de sistemas contemporânea, a velocidade não deve superar a confiabilidade. Ao integrar cinco camadas automatizadas de proteção diretamente no \textit{pipeline} de \textit{deploy}, a prova de conceito do Helpdesk superou as falhas geradas pelo desenvolvimento acelerado, validando o modelo onde a segurança age de forma silenciosa, antecipada e contínua.
 
 \end{document}

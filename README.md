@@ -1,50 +1,62 @@
-# 🛡️ DevSecOps Helpdesk System
+# 🛠️ Helpdesk System
 
-Um sistema de gestão de chamados técnicos (Helpdesk) baseado em microsserviços, desenvolvido com o propósito de demonstrar a implementação prática de uma esteira **DevSecOps** completa. Este projeto integra ferramentas de segurança contínua (CI/CD) para garantir a identificação e mitigação de vulnerabilidades desde o código-fonte até à infraestrutura em nuvem.
+Um sistema simples de gestão de chamados técnicos (Helpdesk), desenvolvido utilizando uma arquitetura baseada em microsserviços conteinerizados. O projeto fornece uma interface completa para abertura, acompanhamento e gerenciamento de tickets de suporte.
 
 ---
 
-## 🏗️ Arquitetura do Sistema
+## 🏗️ Arquitetura e Tecnologias
 
-A aplicação adota uma arquitetura de microsserviços separando responsabilidades entre interface, API e base de dados, garantindo isolamento através de contentores Docker.
+O sistema separa as responsabilidades entre interface, API e persistência de dados, garantindo isolamento através do Docker:
 
-* **Frontend:** React.js construído com Vite e servido através de um servidor **Nginx** otimizado e seguro.
-* **Backend:** API REST desenvolvida em Node.js (Express), com autenticação JWT e rotinas de gestão de chamados.
-* **Base de Dados:** PostgreSQL isolado em rede virtual privada (Docker).
-* **Infraestrutura Cloud:** Provisionamento simulado na AWS (EC2, Security Groups) gerido através de **Terraform** (IaC).
+* **Frontend:** Interface de usuário construída com React.js e Vite, servida de forma estática através do Nginx.
+* **Backend:** API REST desenvolvida em Node.js (Express), responsável pela lógica de negócios, autenticação via JWT e manipulação dos dados.
+* **Banco de Dados:** PostgreSQL rodando em uma rede virtual privada do Docker.
+* **Infraestrutura:** Provisionamento em nuvem (AWS) gerenciado de forma declarativa através de scripts do **Terraform** (IaC).
 
 ---
 
 ## 🚀 Como Executar Localmente
 
 ### Pré-requisitos
-* [Docker](https://www.docker.com/) e [Docker Compose](https://docs.docker.com/compose/) instalados.
+* [Docker](https://www.docker.com/) e [Docker Compose](https://docs.docker.com/compose/) instalados na sua máquina.
 
 ### Passos
 
-1. Clone o repositório:
+1. **Clone o repositório:**
 ```bash
-   git clone https://github.com/dd-znh/helpdesk-system.git
-   cd helpdesk-system
+git clone [https://github.com/dd-znh/helpdesk-system.git](https://github.com/dd-znh/helpdesk-system.git)
+cd helpdesk-system
 ```
 
-2. Configure as variáveis de ambiente:
-Navegue até à pasta `backend`, copie o ficheiro de exemplo e configure os dados (para uso local):
+2. **Configure as variáveis de ambiente:**
+Copie o arquivo de exemplo para gerar as credenciais locais que o banco de dados e a API utilizarão:
 ```bash
 cp backend/.env.example backend/.env
 ```
+*(Opcional: você pode editar o arquivo `backend/.env` caso queira alterar alguma configuração padrão, como o `JWT_SECRET` ou a porta da API).*
 
-
-3. Inicie a arquitetura de contentores:
+3. **Inicie a arquitetura de contêineres:**
+Na raiz do projeto, execute o comando abaixo para construir as imagens e subir todos os serviços em segundo plano:
 ```bash
 docker compose up --build -d
 ```
 
-
-4. Aceda aos serviços:
-* **Interface (Frontend):** `http://localhost:5173`
-* **API (Backend):** `http://localhost:3000`
-
-
+4. **Acesse a aplicação:**
+* **Interface (Frontend):** [http://localhost:5173](https://www.google.com/search?q=http://localhost:5173)
+* **API REST (Backend):** [http://localhost:3000](https://www.google.com/search?q=http://localhost:3000)
 
 ---
+
+## 🛑 Como Parar os Serviços
+
+Para parar a execução da aplicação e desligar os contêineres sem apagar o banco de dados, execute na raiz do projeto:
+
+```bash
+docker compose stop
+```
+
+Para destruir os contêineres e remover a rede (os dados do banco serão mantidos nos volumes):
+
+```bash
+docker compose down
+```

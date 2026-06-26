@@ -22,8 +22,6 @@ export default function NewTicket() {
     }
 
     try {
-      // O Axios é inteligente! Sem passarmos os 'headers' manualmente, 
-      // ele mesmo gera o boundary correto para o multipart/form-data.
       await api.post('/tickets', formData);
       navigate('/dashboard');
     } catch (err) {
